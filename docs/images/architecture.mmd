@@ -1,0 +1,40 @@
+flowchart TD
+    UI["Streamlit<br/>Lecteur · Opérateur · Superviseur"] --> API["API FastAPI"]
+    API --> Agent["Agent LangChain / LangGraph"]
+    Agent -->|Chat| Mistral["API Mistral"]
+
+    Agent --> RAG["search_procedures<br/>Outil RAG local · lecture seule"]
+    RAG -->|Embeddings| Mistral
+    RAG -->|Recherche vectorielle| DB
+
+    Agent -->|MCP · consultations| Reads
+    Agent -->|Proposition de création| Approval{"Pause avant écriture<br/>Décision du superviseur"}
+    API -.->|Décision depuis Streamlit| Approval
+    Approval -->|Approuver · reprise MCP| Create
+    Approval -->|Refuser| Rejected["Reprise sans création"]
+
+    subgraph MCP["Serveur MCP"]
+        direction TB
+        subgraph Reads["4 outils en lecture seule"]
+            direction TB
+            Order["get_order<br/>Commande et lignes"]
+            Customer["get_customer<br/>Fiche client"]
+            Delivery["get_delivery_status<br/>Livraison et suivi"]
+            Stock["check_stock<br/>Stock physique, réservé, disponible"]
+        end
+        Create["create_incident<br/>Écriture après approbation vérifiée"]
+    end
+
+    Reads --> Service["Services métier et repositories<br/>Transactions · idempotence · audit des créations"]
+    Create --> Service
+    Service --> DB[("PostgreSQL / pgvector")]
+    API -->|Profils et conversations| DB
+    Agent -->|Sauvegarde et reprise de l'état| DB
+    Agent -.->|Traces optionnelles| LangSmith["LangSmith<br/>Appels d'outils et résultats"]
+
+    classDef read fill:#e8f4fa,stroke:#2879a1,color:#153b50;
+    classDef write fill:#fff0d1,stroke:#b7791f,color:#67420c;
+    classDef storage fill:#f0eafa,stroke:#7954a1,color:#392454;
+    class Order,Customer,Delivery,Stock,RAG read;
+    class Approval,Create write;
+    class DB storage;

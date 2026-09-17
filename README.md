@@ -10,20 +10,20 @@ Lecteur, Opérateur SAV et Superviseur.
 
 ## Architecture
 
-```text
-Streamlit -> FastAPI -> Agent LangChain/LangGraph -> Mistral
-                         |              |
-                         |              +-> RAG pgvector
-                         +-> MCP -> service -> repositories -> PostgreSQL
-                         +-> PostgreSQL checkpointer (pause/reprise HITL)
-```
+[![Architecture OrderOps : outils MCP, RAG et validation humaine](docs/images/architecture.svg)](docs/images/architecture.svg)
 
-Les lectures métier sont bornées par quatre tools MCP. `create_incident` est la seule
-écriture du MVP : elle est protégée par validation humaine, clé d'idempotence, hash du
-payload, transaction PostgreSQL et audit atomique.
+Le serveur MCP expose quatre outils de consultation et `create_incident`, la seule
+écriture métier accessible au modèle. `search_procedures` est un sixième outil,
+exécuté côté agent pour le RAG. Le profil Lecteur ne reçoit pas `create_incident`.
 
-Voir les [diagrammes UML](docs/architecture-uml.md) : classes métier, composants et
-séquence de validation humaine.
+Le superviseur approuve ou refuse dans Streamlit. PostgreSQL conserve l'état de la
+conversation pendant la pause ; l'approbation autorise la reprise de l'outil d'écriture.
+Le MCP contrôle l'identité, les permissions et la correspondance avec la proposition.
+La création utilise une clé d'idempotence, un hash du payload et une transaction commune
+pour l'incident et son audit. Les traces LangSmith sont optionnelles.
+
+**[Voir l’architecture détaillée](docs/architecture.md)** : classes métier,
+composants et séquence de validation humaine.
 
 ## Démarrage rapide
 
@@ -88,7 +88,7 @@ docker compose up -d --no-deps postgres mcp api ui
 
 La tâche de migration attend PostgreSQL et n'appelle pas Mistral. Les services
 API et MCP utilisent ensuite l'image reconstruite. Les détails de persistance et
-de migration des conversations figurent dans l'[architecture](docs/architecture-uml.md).
+de migration des conversations figurent dans l'[architecture](docs/architecture.md).
 
 ## Développement et tests
 

@@ -1,37 +1,47 @@
-# Architecture et UML du MVP
+# Architecture du MVP
 
 Ce document décrit les composants du MVP local, leurs interactions et la persistance
-des conversations. Les diagrammes Mermaid sont lisibles directement dans GitHub.
+des conversations. Le schéma général est une vue d’architecture ; les vues de classes
+et de séquence complètent cette description avec des diagrammes UML.
 Les capacités et permissions sont détaillées dans le [guide de l'agent](agent-outils-et-roles.md).
 
 ## Composants
 
-```mermaid
-flowchart LR
-    User[Utilisateur local] --> UI[Streamlit]
-    UI -->|HTTP| API[FastAPI]
-    API --> Agent[Agent LangChain / LangGraph]
-    API --> Conversations[ConversationStore]
-    Conversations --> DB[(PostgreSQL)]
-    Agent -->|Chat| Mistral[API Mistral]
-    Agent -->|search_procedures| RAG[RAG]
-    RAG -->|Embeddings| Mistral
-    RAG --> Vector[(pgvector)]
-    Agent -->|Streamable HTTP| MCP[Serveur MCP]
-    MCP --> Auth[Contrôle des permissions]
-    Auth --> Service[OrderOpsService]
-    Service --> UOW[SqlAlchemyUnitOfWork]
-    UOW --> Repos[Repositories SQLAlchemy]
-    Repos --> DB
-    Agent --> Checkpoint[AsyncPostgresSaver]
-    Checkpoint --> DB
-    Agent -. Traces optionnelles .-> LangSmith[LangSmith]
-```
+[![Architecture OrderOps : outils MCP, RAG et validation humaine](images/architecture.svg)](images/architecture.svg)
 
 PostgreSQL héberge les tables métier, les conversations, les checkpoints et les
 vecteurs. Les checkpoints LangGraph et les tables pgvector sont gérés par leurs
 bibliothèques respectives. Le service MCP propose quatre lectures et une écriture :
 `get_order`, `get_customer`, `get_delivery_status`, `check_stock`, `create_incident`.
+
+Les quatre outils du groupe de lecture sont indépendants : le modèle sélectionne
+ceux dont il a besoin. `search_procedures` est exécuté dans le processus de l'agent,
+hors du serveur MCP. Le middleware HITL interrompt uniquement les propositions de
+`create_incident` ; la décision humaine est saisie dans Streamlit et transmise par
+l'API. Les droits et les arguments de la proposition sont ensuite vérifiés dans le MCP.
+Le profil Lecteur ne dispose pas de l'outil de création.
+
+### Mise à jour du schéma général
+
+Le README et cette page affichent le même fichier [SVG](images/architecture.svg).
+La source modifiable est [architecture.mmd](images/architecture.mmd) ; elle n’est
+pas recopiée dans les pages Markdown.
+
+Après une modification de la source, régénérer le SVG depuis la racine du dépôt
+avec Node.js et npm installés :
+
+```bash
+npx --yes --package @mermaid-js/mermaid-cli@11.12.0 mmdc \
+  -i docs/images/architecture.mmd \
+  -o docs/images/architecture.svg \
+  -c docs/images/mermaid-config.json \
+  -b white
+```
+
+La première exécution télécharge l’outil de rendu et son navigateur. Le rendu est
+réalisé localement. Versionner ensemble la source et le SVG régénéré ; GitHub affiche
+l’image enregistrée et ne la régénère pas automatiquement. Ces outils servent
+uniquement à la documentation et ne sont pas nécessaires au lancement de l’application.
 
 ## Classes métier et orchestration
 

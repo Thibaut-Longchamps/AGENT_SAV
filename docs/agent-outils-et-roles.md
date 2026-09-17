@@ -144,7 +144,7 @@ un autre profil.
 
 ## Références
 
-- [Architecture, UML, persistance et routes API](architecture-uml.md)
+- [Architecture, persistance et routes API](architecture.md)
 - [Configuration](configuration.md)
 - Implémentation : [outils MCP](../src/orderops/mcp/server.py),
   [recherche documentaire](../src/orderops/rag/tool.py),
