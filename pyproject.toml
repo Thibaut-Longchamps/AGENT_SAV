@@ -1,0 +1,112 @@
+[project]
+name = "orderops"
+version = "0.1.0"
+description = "Copilote IA ADV/SAV avec MCP, RAG et validation humaine"
+readme = "README.md"
+authors = [
+    { name = "Thibaut-Longchamps", email = "thibaut.longchamps@gmail.com" }
+]
+requires-python = ">=3.12"
+
+dependencies = [
+    "alembic>=1.16,<2",
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "langchain>=1.3.3,<2",
+    "langchain-mcp-adapters==0.3.2",
+    "langchain-mistralai>=1.1,<2",
+    "langchain-postgres>=0.0.17",
+    "langchain-text-splitters>=1.1.2",
+    "langgraph>=1.1,<2",
+    "langgraph-checkpoint-postgres>=3.1.2",
+    "langsmith>=0.11.1",
+    "mcp[cli]>=1.28,<2",
+    "psycopg[binary,pool]>=3,<4",
+    "pydantic>=2,<3",
+    "pydantic-settings>=2,<3",
+    "sqlalchemy>=2,<3",
+    "streamlit>=1.62.0",
+    "structlog>=26.1.0",
+    "uvicorn[standard]>=0.52.4",
+]
+
+
+[project.scripts]
+orderops = "orderops:main"
+
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.3.0",
+    "ipytest>=0.14.2",
+    "langsmith[pytest]>=0.11.1",
+    "mypy>=2.3.1",
+    "pre-commit>=4.6.2",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.4",
+]
+
+
+# Configuration Pytest.
+[tool.pytest.ini_options]
+
+# Gère automatiquement les tests définis avec async def.
+asyncio_mode = "auto"
+
+# Pytest recherche les tests dans le dossier tests/.
+testpaths = ["tests"]
+
+# Catégories de tests personnalisées.
+markers = [
+    "integration: requires PostgreSQL",                  # Tests nécessitant PostgreSQL.
+    "live: requires Mistral and LangSmith credentials", # Tests utilisant les API réelles.
+]
+
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["notebooks"]
+
+
+# Règles contrôlées par Ruff :
+# E = erreurs de style Python (pycodestyle).
+# F = erreurs de code détectées par Pyflakes.
+# I = ordre et organisation des imports.
+# B = bugs et mauvaises pratiques fréquentes (flake8-bugbear).
+# UP = modernisation du code pour les versions récentes de Python.
+# ASYNC = erreurs et mauvaises pratiques liées au code asynchrone.
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC"]
+
+
+# Configuration du vérificateur de types MyPy.
+[tool.mypy]
+python_version = "3.12"
+packages = ["orderops"]
+
+# true = ne bloque pas l'analyse si une bibliothèque externe
+# ne fournit pas correctement ses informations de typage.
+ignore_missing_imports = true
+
+# true = vérifie aussi le contenu des fonctions qui ne sont
+# pas encore entièrement annotées avec des types.
+check_untyped_defs = true
+
+# true = avertit lorsqu'une fonction renvoie un type Any inattendu,
+# ce qui peut masquer une erreur de typage.
+warn_return_any = true
+
+# true = avertit lorsqu'un "# type: ignore" n'est plus nécessaire.
+warn_unused_ignores = true
+
+# true = oblige à déclarer explicitement qu'une valeur peut être None.
+# Exemple : str | None au lieu de considérer implicitement None comme valide.
+no_implicit_optional = true

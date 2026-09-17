@@ -1,0 +1,13 @@
+repos:
+  - repo: local
+    hooks:
+      - id: publication-hygiene
+        name: Check staged files and notebook outputs
+        entry: python scripts/check_publication.py --staged
+        language: python
+        pass_filenames: false
+        always_run: true
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks

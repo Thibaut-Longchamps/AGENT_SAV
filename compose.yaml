@@ -1,0 +1,198 @@
+name: orderops
+
+x-app: &app
+  image: orderops-ai-agent:${IMAGE_TAG:-dev}
+  pull_policy: never
+  env_file:
+    - .env
+  init: true
+
+x-app-environment: &app-environment
+  DEMO_MODE: "true"
+  MCP_INTERNAL_TOKEN: ${MCP_INTERNAL_TOKEN:-orderops-local-demo-only}
+  DATABASE_URL: >-
+    postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  CHECKPOINT_DATABASE_URL: >-
+    postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - orderops_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  migrate:
+    <<: *app
+    build:
+      context: .
+      target: runtime
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      <<: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  seed:
+    image: pgvector/pgvector:0.8.6-pg16-bookworm
+    entrypoint: ["psql"]
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./scripts/seed.sql:/seed.sql:ro
+    command:
+      - -h
+      - postgres
+      - -U
+      - ${POSTGRES_USER}
+      - -d
+      - ${POSTGRES_DB}
+      - -v
+      - ON_ERROR_STOP=1
+      - -f
+      - /seed.sql
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  checkpointer-setup:
+    <<: *app
+    command: ["python", "scripts/setup_checkpointer.py"]
+    environment:
+      <<: *app-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  ingest:
+    <<: *app
+    command: ["python", "scripts/ingest_procedures.py"]
+    environment:
+      <<: *app-environment
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+      MISTRAL_EMBED_MODEL: ${MISTRAL_EMBED_MODEL:-mistral-embed}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  mcp:
+    <<: *app
+    command: ["python", "-m", "orderops.mcp.server"]
+    environment:
+      <<: *app-environment
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: "8001"
+    expose:
+      - "8001"
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import socket; socket.create_connection(('127.0.0.1', 8001), 2).close()
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    <<: *app
+    command:
+      - uvicorn
+      - orderops.api.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --workers
+      - "1"
+    environment:
+      <<: *app-environment
+      MCP_URL: http://mcp:8001/mcp
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+      MISTRAL_CHAT_MODEL: ${MISTRAL_CHAT_MODEL:-mistral-small-latest}
+      MISTRAL_EMBED_MODEL: ${MISTRAL_EMBED_MODEL:-mistral-embed}
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-orderops-ai-agent}
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      mcp:
+        condition: service_healthy
+      ingest:
+        condition: service_completed_successfully
+      checkpointer-setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  ui:
+    <<: *app
+    command:
+      - streamlit
+      - run
+      - src/orderops/ui/app.py
+      - --server.address=0.0.0.0
+      - --server.port=8501
+      - --server.headless=true
+    environment:
+      ORDEROPS_API_URL: http://api:8000
+    ports:
+      - "127.0.0.1:8501:8501"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  evals:
+    <<: *app
+    profiles: ["evals"]
+    command: ["python", "scripts/run_evals.py"]
+    environment:
+      <<: *app-environment
+      MCP_URL: http://mcp:8001/mcp
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+      MISTRAL_CHAT_MODEL: ${MISTRAL_CHAT_MODEL:-mistral-small-latest}
+      MISTRAL_EMBED_MODEL: ${MISTRAL_EMBED_MODEL:-mistral-embed}
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-orderops-ai-agent-evals}
+    depends_on:
+      mcp:
+        condition: service_healthy
+      ingest:
+        condition: service_completed_successfully
+      checkpointer-setup:
+        condition: service_completed_successfully
+    restart: "no"
+
+volumes:
+  orderops_pgdata:

@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  publication:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: python3 scripts/check_publication.py --tracked
+      - name: Scan Git history for secrets (redacted output)
+        run: >-
+          docker run --rm -v "$PWD:/repo:ro"
+          zricethezav/gitleaks:v8.30.1
+          git /repo --redact --no-banner --log-opts="--all"
+
+  quality-and-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg16-bookworm
+        env:
+          POSTGRES_DB: orderops_test
+          POSTGRES_USER: orderops_test
+          POSTGRES_PASSWORD: orderops_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U orderops_test -d orderops_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: >-
+        postgresql+psycopg://orderops_test:orderops_test@127.0.0.1:5432/orderops_test
+      CHECKPOINT_DATABASE_URL: >-
+        postgresql://orderops_test:orderops_test@127.0.0.1:5432/orderops_test?sslmode=disable
+      MISTRAL_API_KEY: not-used-in-ci
+      LANGSMITH_TRACING: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v9
+        with:
+          version: "0.12.5"
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --locked --dev
+      - run: uv run alembic upgrade head
+      - run: uv run alembic check
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run mypy src
+      - run: uv run pytest -m "not live" -q
+      - run: docker build -t orderops:test .
