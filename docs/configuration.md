@@ -11,7 +11,7 @@ des modèles simulés et des identifiants PostgreSQL de test.
 | `DEMO_MODE` | `true`. Les profils ne constituent pas une authentification. |
 | `POSTGRES_DB` | Base Compose : `orderops`. |
 | `POSTGRES_USER` | Utilisateur Compose : `orderops`. |
-| `POSTGRES_PASSWORD` | Mot de passe local public dans le modèle, à remplacer pour toute autre utilisation. |
+| `POSTGRES_PASSWORD` | Remplacer le placeholder `<POSTGRES_PASSWORD>` dans `.env` avant la première initialisation de la base. |
 | `POSTGRES_PORT` | Port local Compose : `5432`. |
 | `DATABASE_URL` | URL SQLAlchemy, préfixe `postgresql+psycopg://`. Obligatoire pour Python hors Compose. |
 | `CHECKPOINT_DATABASE_URL` | URL Psycopg, préfixe `postgresql://`. Obligatoire pour les checkpoints. |
@@ -31,9 +31,18 @@ des modèles simulés et des identifiants PostgreSQL de test.
 | `POSTGRES_TEST_PORT` | Option du Compose de test : `5433` par défaut. |
 
 Compose reconstruit les deux URL PostgreSQL à partir de `POSTGRES_*`, avec l'hôte
-interne `postgres`. Hors Compose, garder le mot de passe, le port et le nom de base
-cohérents dans les deux URL. Encoder les caractères réservés lorsqu'un mot de passe
-est utilisé dans une URL.
+interne `postgres`. Cette construction insère directement le mot de passe dans
+les URL : pour le parcours Compose de démonstration, utiliser un mot de passe
+composé de lettres et de chiffres.
+
+Hors Compose, remplacer aussi `<POSTGRES_PASSWORD>` dans `DATABASE_URL` et
+`CHECKPOINT_DATABASE_URL`. Garder le mot de passe, le port et le nom de base
+cohérents dans les deux URL, avec l'hôte `127.0.0.1`. Encoder les caractères
+réservés lorsqu'un mot de passe est utilisé dans une URL.
+
+Sur un volume PostgreSQL déjà initialisé, modifier `POSTGRES_PASSWORD` dans `.env`
+ne change pas le mot de passe enregistré dans la base. La configuration doit
+correspondre au mot de passe du rôle PostgreSQL existant.
 
 Les clés API et le jeton MCP utilisent `SecretStr`. Les URL contenant un mot de passe
 sont exclues de la représentation de `Settings`. Cela ne rend pas sûre une impression

@@ -3,7 +3,7 @@
 Ce document décrit les composants du MVP local, leurs interactions et la persistance
 des conversations. Le schéma général est une vue d’architecture ; les vues de classes
 et de séquence complètent cette description avec des diagrammes UML.
-Les capacités et permissions sont détaillées dans le [guide de l'agent](agent-outils-et-roles.md).
+Les capacités et permissions sont détaillées dans le [README — Capacités, outils et rôles](../README.md#capacités-outils-et-rôles).
 
 ## Composants
 
